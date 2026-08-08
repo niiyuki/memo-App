@@ -66,7 +66,6 @@
       flex-grow: 1;
     }
 
-    /* メモ項目（フレックス配置にして右側に削除ボタンを置く） */
     #memo-list li {
       padding: 12px 15px;
       border-bottom: 1px solid var(--border-color);
@@ -91,7 +90,6 @@
       background-color: #d1d1d6;
     }
 
-    /* メモのタイトルテキスト */
     .memo-title {
       white-space: nowrap;
       overflow: hidden;
@@ -100,21 +98,22 @@
       margin-right: 8px;
     }
 
-    /* 一覧の中の削除ボタン */
+    /* 一覧の中の削除ボタン（×マーク） */
     .list-delete-btn {
       background: none;
       border: none;
-      font-size: 14px;
+      font-size: 16px;
+      color: #8e8e93;
       cursor: pointer;
       padding: 2px 6px;
-      opacity: 0.6;
-      transition: opacity 0.2s, transform 0.1s;
+      transition: color 0.2s, transform 0.1s;
       flex-shrink: 0;
+      line-height: 1;
     }
 
     .list-delete-btn:hover {
-      opacity: 1;
-      transform: scale(1.1);
+      color: #ff3b30; /* ホバー時に赤色に変化 */
+      transform: scale(1.2);
     }
 
     #memo-list li.dragging {
@@ -240,7 +239,7 @@
       document.getElementById('save-status').textContent = '';
     }
 
-    // 2. メモ一覧の描画（タイトル＋右側に削除ボタン）
+    // 2. メモ一覧の描画（タイトル＋右側に✕ボタン）
     function renderMemoList() {
       const list = document.getElementById('memo-list');
       list.innerHTML = '';
@@ -258,13 +257,13 @@
         titleSpan.textContent = lines[0] || "新規メモ";
         titleSpan.onclick = () => selectMemo(memo.id);
 
-        // 削除ボタン部分（🗑️）
+        // 削除ボタン部分（✕マーク）
         const delBtn = document.createElement('button');
         delBtn.className = 'list-delete-btn';
-        delBtn.innerHTML = '🗑️';
+        delBtn.innerHTML = '✕';
         delBtn.title = 'メモを削除';
         delBtn.onclick = (e) => {
-          e.stopPropagation(); // メモの選択イベントが発生するのを防ぐ
+          e.stopPropagation();
           deleteMemoById(memo.id);
         };
 
@@ -400,10 +399,8 @@
         return;
       }
 
-      // データから削除
       memosData = memosData.filter(m => m.id !== id);
 
-      // 現在開いていたメモを削除した場合は編集欄をリセット
       if (currentMemoId === id) {
         createNewMemo();
         hideEditor();
