@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>iMemo - 不具合修正版</title>
+  <title>iMemo</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
@@ -168,8 +168,10 @@
   </div>
 
   <script>
+    // Supabaseの接続情報をセット済み
     const SUPABASE_URL = "https://lgolwacrtoabfnwpzfvq.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxnb2x3YWNydG9hYmZud3B6ZnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxMzE3NzIsImV4cCI6MjEwMTcwNzc3Mn0.nd15mPFy49ttqhYC1ycFtXfPXwZRymyFWoqBef0IHSU";
+    
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let currentMemoId = null;
@@ -179,21 +181,27 @@
 
     window.onload = loadMemos;
 
+    // 1. メモ一覧をSupabaseから読み込む
     async function loadMemos() {
+      document.getElementById('save-status').textContent = '読み込み中...';
+      
       const { data, error } = await supabaseClient
         .from('memos')
         .select('*')
         .order('id', { ascending: false });
 
       if (error) {
-        console.error("読み込み失敗:", error.message);
+        alert("接続エラー: " + error.message);
+        document.getElementById('save-status').textContent = '接続失敗';
         return;
       }
       
-      memosData = data;
+      memosData = data || [];
       renderMemoList();
+      document.getElementById('save-status').textContent = '';
     }
 
+    // 2. メモ一覧を描画
     function renderMemoList() {
       const list = document.getElementById('memo-list');
       list.innerHTML = '';
@@ -213,6 +221,7 @@
       });
     }
 
+    // 3. メモを選択
     function selectMemo(id) {
       currentMemoId = id;
       const memo = memosData.find(m => m.id === id);
@@ -228,28 +237,25 @@
       }
     }
 
-    // ★【修正】新規メモ作成（＋ボタンを押した時）
+    // 4. 新規メモ作成（＋ボタン）
     function createNewMemo() {
-      // 1. 動いている保存タイマーを強制ストップ
       clearTimeout(saveTimeout);
       isSaving = false;
 
-      // 2. 現在選択中のメモを解除して入力欄をクリア
       currentMemoId = null;
       const textarea = document.getElementById('memo-textarea');
       textarea.value = '';
       document.getElementById('save-status').textContent = '新規メモ';
       
-      // 3. 一覧の選択表示を解除＆画面切り替え
       renderMemoList();
       showEditor();
 
-      // 4. 入力エリアにカーソルをセット
       setTimeout(() => {
         textarea.focus();
       }, 50);
     }
 
+    // 5. 文字入力時の処理
     function handleInput() {
       const text = document.getElementById('memo-textarea').value;
       
@@ -269,7 +275,7 @@
       }, 300);
     }
 
-    // ★【修正】エラーが起きてもアプリが固まらないように改善
+    // 6. 自動保存
     async function autoSave() {
       const text = document.getElementById('memo-textarea').value;
 
@@ -293,7 +299,7 @@
             document.getElementById('save-status').textContent = '保存済み';
           }
         } else {
-          // 【新規作成】
+          // 【新規登録】
           const { data, error } = await supabaseClient
             .from('memos')
             .insert([{ text: text }])
@@ -309,7 +315,7 @@
       } catch (e) {
         console.error("保存エラー:", e);
       } finally {
-        isSaving = false; // 必ず保存ロックを解除
+        isSaving = false;
       }
     }
 
