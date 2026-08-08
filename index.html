@@ -2,58 +2,309 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>マイメモアプリ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>iMemo - iPhone Style</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    body { font-family: sans-serif; max-width: 500px; margin: 30px auto; padding: 0 20px; }
-    h1 { color: #333; }
-    input { width: 70%; padding: 10px; font-size: 16px; }
-    button { padding: 10px 15px; font-size: 16px; background-color: #3ecf8e; color: white; border: none; border-radius: 4px; cursor: pointer; }
-    ul { list-style: none; padding: 0; margin-top: 20px; }
-    li { background: #f4f4f4; padding: 10px; margin-bottom: 8px; border-radius: 4px; }
+    /* 全体の設定 */
+    :root {
+      --bg-color: #f2f2f7; /* iPhoneの薄灰色 */
+      --list-bg: #ffffff;
+      --accent-color: #eab308; /* メモ帳の黄色 */
+      --text-color: #000000;
+      --border-color: #c6c6c8;
+      --sidebar-width: 260px;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      overflow: hidden; /* スクロールは各エリアで */
+    }
+
+    /* 左側：メモ一覧（サイドバー） */
+    #sidebar {
+      width: var(--sidebar-width);
+      background-color: var(--bg-color);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+    }
+
+    #sidebar-header {
+      padding: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    #sidebar-title {
+      font-size: 17px;
+      font-weight: 600;
+    }
+
+    #new-memo-btn {
+      background: none;
+      border: none;
+      color: var(--accent-color);
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    #memo-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      overflow-y: auto; /* 縦スクロール */
+      flex-grow: 1;
+    }
+
+    #memo-list li {
+      padding: 12px 15px;
+      border-bottom: 1px solid var(--border-color);
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis; /* 長いテキストは「...」に */
+    }
+
+    #memo-list li:hover {
+      background-color: #e5e5ea;
+    }
+
+    #memo-list li.selected {
+      background-color: #d1d1d6; /* 選択中の色 */
+    }
+
+    /* 右側：メモ詳細（エディタ） */
+    #editor {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--list-bg);
+    }
+
+    #editor-header {
+      padding: 10px 15px;
+      display: flex;
+      justify-content: flex-end; /* 右寄せ */
+      border-bottom: 1px solid var(--border-color);
+      height: 35px;
+      align-items: center;
+    }
+
+    #save-btn {
+      background: none;
+      border: none;
+      color: var(--accent-color);
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      display: none; /* 初期状態は非表示 */
+    }
+
+    #memo-textarea {
+      flex-grow: 1;
+      padding: 20px;
+      border: none;
+      resize: none;
+      font-size: 16px;
+      line-height: 1.5;
+      outline: none; /* 枠線を消す */
+    }
+
+    /* スマホ対応（画面が狭い時） */
+    @media (max-width: 600px) {
+      :root {
+        --sidebar-width: 100%; /* 全画面 */
+      }
+      body {
+        position: relative;
+      }
+      #editor {
+        position: absolute;
+        top: 0;
+        left: 100%; /* 画面外に隠す */
+        width: 100%;
+        height: 100%;
+        transition: left 0.3s; /* アニメーション */
+        z-index: 10;
+      }
+      body.showing-editor #editor {
+        left: 0; /* 画面内に表示 */
+      }
+      
+      /* スマホ用の戻るボタン */
+      #back-btn {
+        display: block;
+        background: none;
+        border: none;
+        color: var(--accent-color);
+        font-size: 17px;
+        cursor: pointer;
+        position: absolute;
+        left: 15px;
+      }
+    }
+    
+    @media (min-width: 601px) {
+      #back-btn { display: none; }
+    }
+
   </style>
 </head>
 <body>
 
-  <h1>📝 マイメモアプリ</h1>
-  <input type="text" id="memoInput" placeholder="メモを入力...">
-  <button onclick="addMemo()">保存</button>
+  <!-- 左側：メモ一覧 -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <div id="sidebar-title">メモ</div>
+      <button id="new-memo-btn" onclick="createNewMemo()">📝</button>
+    </div>
+    <ul id="memo-list">
+      <!-- ここにメモ一覧が自動で入ります -->
+    </ul>
+  </div>
 
-  <ul id="memoList"></ul>
+  <!-- 右側：メモ詳細 -->
+  <div id="editor">
+    <div id="editor-header">
+      <button id="back-btn" onclick="hideEditor()">◀ メモ</button>
+      <button id="save-btn" onclick="saveMemo()">完了</button>
+    </div>
+    <textarea id="memo-textarea" placeholder="メモを入力..." oninput="showSaveBtn()"></textarea>
+  </div>
 
   <script>
-    // ※Vercelの設定画面で読み込ませる安全な設定です
-    const SUPABASE_URL = "https://lgolwacrtoabfnwpzfvq.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxnb2x3YWNydG9hYmZud3B6ZnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxMzE3NzIsImV4cCI6MjEwMTcwNzc3Mn0.nd15mPFy49ttqhYC1ycFtXfPXwZRymyFWoqBef0IHSU";
-    
+    // --- 以前の設定（Vercel側で読み込む） ---
+    const SUPABASE_URL = "YOUR_SUPABASE_URL";
+    const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY";
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 画面が開いたらメモ一覧を読み込む
+    let currentMemoId = null; // 現在編集中のメモのID
+    let memosData = []; // メモデータを一時保存
+
+    // 画面が開いたら実行
     window.onload = loadMemos;
 
+    // 1. メモ一覧をSupabaseから読み込む
     async function loadMemos() {
-      const { data, error } = await supabaseClient.from('memos').select('*').order('id', { ascending: false });
-      if (error) return alert("読み込み失敗: " + error.message);
+      const { data, error } = await supabaseClient
+        .from('memos')
+        .select('*')
+        .order('id', { ascending: false }); // 新しい順
+
+      if (error) {
+        console.error("読み込み失敗:", error.message);
+        return;
+      }
       
-      const list = document.getElementById('memoList');
-      list.innerHTML = '';
-      data.forEach(memo => {
+      memosData = data; // データを保存
+      renderMemoList(); // 画面に表示
+    }
+
+    // 2. メモ一覧を画面に描画する
+    function renderMemoList() {
+      const list = document.getElementById('memo-list');
+      list.innerHTML = ''; // 一旦クリア
+
+      memosData.forEach(memo => {
         const li = document.createElement('li');
-        li.textContent = memo.text;
+        
+        // 最初の1行をタイトルにする
+        const lines = memo.text.split('\n');
+        li.textContent = lines[0] || "新規メモ"; 
+        
+        li.onclick = () => selectMemo(memo.id);
+        
+        if (memo.id === currentMemoId) {
+          li.classList.add('selected'); // 選択中のスタイル
+        }
+        
         list.appendChild(li);
       });
     }
 
-    async function addMemo() {
-      const input = document.getElementById('memoInput');
-      if (!input.value) return;
+    // 3. メモを選択して右側に表示する
+    function selectMemo(id) {
+      currentMemoId = id;
+      const memo = memosData.find(m => m.id === id);
+      const textarea = document.getElementById('memo-textarea');
+      const saveBtn = document.getElementById('save-btn');
 
-      const { error } = await supabaseClient.from('memos').insert([{ text: input.value }]);
-      if (error) return alert("保存失敗: " + error.message);
+      if (memo) {
+        textarea.value = memo.text;
+        saveBtn.style.display = 'none'; // まだ変更がないので「完了」は隠す
+        textarea.focus(); // 入力状態にする
+        
+        renderMemoList(); // 一覧の選択状態を更新
+        showEditor(); // スマホ用にエディタを表示
+      }
+    }
 
-      input.value = '';
-      loadMemos(); // 再読み込み
+    // 4. 「📝 (新規メモ)」ボタンを押した時
+    function createNewMemo() {
+      currentMemoId = null; // IDをクリア
+      document.getElementById('memo-textarea').value = ''; // テキストを空に
+      document.getElementById('memo-textarea').focus();
+      document.getElementById('save-btn').style.display = 'block'; // 「完了」を表示
+      renderMemoList(); // 選択を解除
+      showEditor(); // スマホ用にエディタを表示
+    }
+
+    // 5. テキストが入力されたら「完了」ボタンを表示する
+    function showSaveBtn() {
+      document.getElementById('save-btn').style.display = 'block';
+    }
+
+    // 6. 「完了」ボタンを押してSupabaseに保存（追加または更新）する
+    async function saveMemo() {
+      const text = document.getElementById('memo-textarea').value;
+      if (!text) return; // 空っぽなら保存しない
+
+      document.getElementById('save-btn').style.display = 'none'; // ボタンを隠す
+
+      if (currentMemoId) {
+        // 【更新】すでにIDがあるメモ
+        const { error } = await supabaseClient
+          .from('memos')
+          .update({ text: text })
+          .eq('id', currentMemoId);
+        if (error) alert("更新失敗: " + error.message);
+      } else {
+        // 【追加】新しいメモ
+        const { data, error } = await supabaseClient
+          .from('memos')
+          .insert([{ text: text }])
+          .select(); // 追加したデータを取得
+        if (error) {
+          alert("保存失敗: " + error.message);
+        } else if (data) {
+          currentMemoId = data[0].id; // 新しいIDをセット
+        }
+      }
+
+      await loadMemos(); // 一覧をリロード
+    }
+
+    // --- スマホ用の表示切り替え機能 ---
+    function showEditor() {
+      if (window.innerWidth <= 600) {
+        document.body.classList.add('showing-editor');
+      }
+    }
+
+    function hideEditor() {
+      document.body.classList.remove('showing-editor');
+      currentMemoId = null;
+      renderMemoList(); // 選択解除
     }
   </script>
 </body>
