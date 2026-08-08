@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>iMemo - iPhone Style</title>
+  <title>iMemo - 自動保存対応</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     /* 全体の設定 */
@@ -24,7 +24,7 @@
       display: flex;
       background-color: var(--bg-color);
       color: var(--text-color);
-      overflow: hidden; /* スクロールは各エリアで */
+      overflow: hidden;
     }
 
     /* 左側：メモ一覧（サイドバー） */
@@ -62,7 +62,7 @@
       list-style: none;
       padding: 0;
       margin: 0;
-      overflow-y: auto; /* 縦スクロール */
+      overflow-y: auto;
       flex-grow: 1;
     }
 
@@ -72,7 +72,7 @@
       cursor: pointer;
       white-space: nowrap;
       overflow: hidden;
-      text-overflow: ellipsis; /* 長いテキストは「...」に */
+      text-overflow: ellipsis;
     }
 
     #memo-list li:hover {
@@ -80,7 +80,7 @@
     }
 
     #memo-list li.selected {
-      background-color: #d1d1d6; /* 選択中の色 */
+      background-color: #d1d1d6;
     }
 
     /* 右側：メモ詳細（エディタ） */
@@ -94,20 +94,16 @@
     #editor-header {
       padding: 10px 15px;
       display: flex;
-      justify-content: flex-end; /* 右寄せ */
+      justify-content: space-between;
+      align-items: center;
       border-bottom: 1px solid var(--border-color);
       height: 35px;
-      align-items: center;
     }
 
-    #save-btn {
-      background: none;
-      border: none;
-      color: var(--accent-color);
-      font-size: 17px;
-      font-weight: 600;
-      cursor: pointer;
-      display: none; /* 初期状態は非表示 */
+    /* 保存状態を表示するラベル */
+    #save-status {
+      font-size: 13px;
+      color: #8e8e93;
     }
 
     #memo-textarea {
@@ -117,13 +113,13 @@
       resize: none;
       font-size: 16px;
       line-height: 1.5;
-      outline: none; /* 枠線を消す */
+      outline: none;
     }
 
     /* スマホ対応（画面が狭い時） */
     @media (max-width: 600px) {
       :root {
-        --sidebar-width: 100%; /* 全画面 */
+        --sidebar-width: 100%;
       }
       body {
         position: relative;
@@ -131,17 +127,16 @@
       #editor {
         position: absolute;
         top: 0;
-        left: 100%; /* 画面外に隠す */
+        left: 100%;
         width: 100%;
         height: 100%;
-        transition: left 0.3s; /* アニメーション */
+        transition: left 0.3s;
         z-index: 10;
       }
       body.showing-editor #editor {
-        left: 0; /* 画面内に表示 */
+        left: 0;
       }
       
-      /* スマホ用の戻るボタン */
       #back-btn {
         display: block;
         background: none;
@@ -149,8 +144,6 @@
         color: var(--accent-color);
         font-size: 17px;
         cursor: pointer;
-        position: absolute;
-        left: 15px;
       }
     }
     
@@ -168,133 +161,144 @@
       <div id="sidebar-title">メモ</div>
       <button id="new-memo-btn" onclick="createNewMemo()">📝</button>
     </div>
-    <ul id="memo-list">
-      <!-- ここにメモ一覧が自動で入ります -->
-    </ul>
+    <ul id="memo-list"></ul>
   </div>
 
   <!-- 右側：メモ詳細 -->
   <div id="editor">
     <div id="editor-header">
       <button id="back-btn" onclick="hideEditor()">◀ メモ</button>
-      <button id="save-btn" onclick="saveMemo()">完了</button>
+      <div id="save-status"></div>
     </div>
-    <textarea id="memo-textarea" placeholder="メモを入力..." oninput="showSaveBtn()"></textarea>
+    <!-- 文字を入力するたびに oninput が動いて自動保存します -->
+    <textarea id="memo-textarea" placeholder="メモを入力..." oninput="handleInput()"></textarea>
   </div>
 
   <script>
-    // --- 以前の設定（Vercel側で読み込む） ---
     const SUPABASE_URL = "YOUR_SUPABASE_URL";
     const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY";
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let currentMemoId = null; // 現在編集中のメモのID
-    let memosData = []; // メモデータを一時保存
+    let currentMemoId = null;
+    let memosData = [];
+    let saveTimeout = null; // 自動保存のタイマー
 
-    // 画面が開いたら実行
     window.onload = loadMemos;
 
-    // 1. メモ一覧をSupabaseから読み込む
+    // 1. メモ一覧を読み込む
     async function loadMemos() {
       const { data, error } = await supabaseClient
         .from('memos')
         .select('*')
-        .order('id', { ascending: false }); // 新しい順
+        .order('id', { ascending: false });
 
       if (error) {
         console.error("読み込み失敗:", error.message);
         return;
       }
       
-      memosData = data; // データを保存
-      renderMemoList(); // 画面に表示
+      memosData = data;
+      renderMemoList();
     }
 
-    // 2. メモ一覧を画面に描画する
+    // 2. メモ一覧の描画
     function renderMemoList() {
       const list = document.getElementById('memo-list');
-      list.innerHTML = ''; // 一旦クリア
+      list.innerHTML = '';
 
       memosData.forEach(memo => {
         const li = document.createElement('li');
-        
-        // 最初の1行をタイトルにする
         const lines = memo.text.split('\n');
         li.textContent = lines[0] || "新規メモ"; 
         
         li.onclick = () => selectMemo(memo.id);
         
         if (memo.id === currentMemoId) {
-          li.classList.add('selected'); // 選択中のスタイル
+          li.classList.add('selected');
         }
         
         list.appendChild(li);
       });
     }
 
-    // 3. メモを選択して右側に表示する
+    // 3. メモを選択
     function selectMemo(id) {
       currentMemoId = id;
       const memo = memosData.find(m => m.id === id);
       const textarea = document.getElementById('memo-textarea');
-      const saveBtn = document.getElementById('save-btn');
 
       if (memo) {
         textarea.value = memo.text;
-        saveBtn.style.display = 'none'; // まだ変更がないので「完了」は隠す
-        textarea.focus(); // 入力状態にする
+        document.getElementById('save-status').textContent = '保存済み';
+        textarea.focus();
         
-        renderMemoList(); // 一覧の選択状態を更新
-        showEditor(); // スマホ用にエディタを表示
+        renderMemoList();
+        showEditor();
       }
     }
 
-    // 4. 「📝 (新規メモ)」ボタンを押した時
+    // 4. 新規メモ作成
     function createNewMemo() {
-      currentMemoId = null; // IDをクリア
-      document.getElementById('memo-textarea').value = ''; // テキストを空に
+      currentMemoId = null;
+      document.getElementById('memo-textarea').value = '';
+      document.getElementById('save-status').textContent = '';
       document.getElementById('memo-textarea').focus();
-      document.getElementById('save-btn').style.display = 'block'; // 「完了」を表示
-      renderMemoList(); // 選択を解除
-      showEditor(); // スマホ用にエディタを表示
+      renderMemoList();
+      showEditor();
     }
 
-    // 5. テキストが入力されたら「完了」ボタンを表示する
-    function showSaveBtn() {
-      document.getElementById('save-btn').style.display = 'block';
+    // 5. 文字入力時の処理（自動保存のトリガー）
+    function handleInput() {
+      document.getElementById('save-status').textContent = '保存中...';
+
+      // 連続で入力している間は保存を待ち、入力が少し止まったら（0.5秒後）自動保存する
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        autoSave();
+      }, 500);
     }
 
-    // 6. 「完了」ボタンを押してSupabaseに保存（追加または更新）する
-    async function saveMemo() {
+    // 6. 自動保存を実行
+    async function autoSave() {
       const text = document.getElementById('memo-textarea').value;
-      if (!text) return; // 空っぽなら保存しない
 
-      document.getElementById('save-btn').style.display = 'none'; // ボタンを隠す
+      // 文字が空で、まだ作成されていない場合は保存しない
+      if (!text && !currentMemoId) {
+        document.getElementById('save-status').textContent = '';
+        return;
+      }
 
       if (currentMemoId) {
-        // 【更新】すでにIDがあるメモ
+        // 【更新】既存のメモを上書き保存
         const { error } = await supabaseClient
           .from('memos')
           .update({ text: text })
           .eq('id', currentMemoId);
-        if (error) alert("更新失敗: " + error.message);
+
+        if (!error) {
+          // メモ一覧の表示テキストを更新
+          const memo = memosData.find(m => m.id === currentMemoId);
+          if (memo) memo.text = text;
+          renderMemoList();
+          document.getElementById('save-status').textContent = '保存済み';
+        }
       } else {
-        // 【追加】新しいメモ
+        // 【新規作成】初回入力時に自動で新規登録
         const { data, error } = await supabaseClient
           .from('memos')
           .insert([{ text: text }])
-          .select(); // 追加したデータを取得
-        if (error) {
-          alert("保存失敗: " + error.message);
-        } else if (data) {
-          currentMemoId = data[0].id; // 新しいIDをセット
+          .select();
+
+        if (!error && data && data.length > 0) {
+          currentMemoId = data[0].id; // 発行されたIDを保持
+          memosData.unshift(data[0]); // 一覧の一番上に追加
+          renderMemoList();
+          document.getElementById('save-status').textContent = '保存済み';
         }
       }
-
-      await loadMemos(); // 一覧をリロード
     }
 
-    // --- スマホ用の表示切り替え機能 ---
+    // スマホ用画面切り替え
     function showEditor() {
       if (window.innerWidth <= 600) {
         document.body.classList.add('showing-editor');
@@ -304,7 +308,7 @@
     function hideEditor() {
       document.body.classList.remove('showing-editor');
       currentMemoId = null;
-      renderMemoList(); // 選択解除
+      renderMemoList();
     }
   </script>
 </body>
