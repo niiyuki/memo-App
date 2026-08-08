@@ -3,20 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>iMemo</title>
+  <title>Kawaii Memo</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
-      --bg-color: #f2f2f7;
+      --bg-color: #fdfbf7;       /* 柔らかいミルク色 */
+      --sidebar-bg: #f7f3ed;   /* サイドバーのほんのりベージュ */
       --list-bg: #ffffff;
-      --accent-color: #eab308;
-      --text-color: #000000;
-      --border-color: #c6c6c8;
+      --accent-color: #ff9ebb;   /* やさしいイチゴピンク */
+      --accent-hover: #ff85a8;
+      --text-color: #5a524e;     /* ふんわりしたダークブラウン */
+      --border-color: #eee8e0;
       --sidebar-width: 260px;
     }
     
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: "Hiragino Maru Gothic ProN", "Quicksand", -apple-system, BlinkMacSystemFont, sans-serif;
       margin: 0;
       padding: 0;
       height: 100vh;
@@ -28,54 +30,68 @@
 
     #sidebar {
       width: var(--sidebar-width);
-      background-color: var(--bg-color);
-      border-right: 1px solid var(--border-color);
+      background-color: var(--sidebar-bg);
+      border-right: 2px dashed var(--border-color);
       display: flex;
       flex-direction: column;
     }
 
     #sidebar-header {
-      padding: 15px;
+      padding: 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid var(--border-color);
+      border-bottom: 2px dashed var(--border-color);
     }
 
     #sidebar-title {
-      font-size: 17px;
-      font-weight: 600;
+      font-size: 18px;
+      font-weight: bold;
+      color: var(--accent-color);
+      letter-spacing: 1px;
     }
 
     #new-memo-btn {
-      background: none;
+      background: var(--accent-color);
       border: none;
-      color: var(--accent-color);
-      font-size: 28px;
-      font-weight: 300;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 20px;
       cursor: pointer;
-      padding: 0 5px;
-      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s, background-color 0.2s;
+      box-shadow: 0 2px 5px rgba(255, 158, 187, 0.4);
+    }
+
+    #new-memo-btn:hover {
+      background-color: var(--accent-hover);
+      transform: scale(1.1);
     }
 
     #memo-list {
       list-style: none;
-      padding: 0;
+      padding: 10px;
       margin: 0;
       overflow-y: auto;
       flex-grow: 1;
     }
 
     #memo-list li {
-      padding: 12px 15px;
-      border-bottom: 1px solid var(--border-color);
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      border-radius: 12px;
       cursor: grab;
       user-select: none;
-      background-color: var(--bg-color);
-      transition: background-color 0.2s, opacity 0.2s;
+      background-color: var(--list-bg);
+      transition: all 0.2s ease;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
     }
 
     #memo-list li:active {
@@ -83,11 +99,14 @@
     }
 
     #memo-list li:hover {
-      background-color: #e5e5ea;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.05);
     }
 
     #memo-list li.selected {
-      background-color: #d1d1d6;
+      background-color: #fff0f4;
+      border: 1px solid var(--accent-color);
+      font-weight: bold;
     }
 
     .memo-title {
@@ -101,8 +120,8 @@
     .list-delete-btn {
       background: none;
       border: none;
-      font-size: 16px;
-      color: #8e8e93;
+      font-size: 14px;
+      color: #c2b8b2;
       cursor: pointer;
       padding: 2px 6px;
       transition: color 0.2s, transform 0.1s;
@@ -111,78 +130,74 @@
     }
 
     .list-delete-btn:hover {
-      color: #ff3b30;
+      color: #ff6b81;
       transform: scale(1.2);
     }
 
     #memo-list li.dragging {
       opacity: 0.4;
-      background-color: #e5e5ea;
     }
 
     #editor {
       flex-grow: 1;
       display: flex;
       flex-direction: column;
-      background-color: var(--list-bg);
+      background-color: var(--bg-color);
     }
 
     #editor-header {
-      padding: 5px 15px;
+      padding: 8px 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid var(--border-color);
-      height: 40px;
+      border-bottom: 2px dashed var(--border-color);
+      height: 42px;
     }
 
-    /* 編集ツールバーボタン */
     .toolbar-group {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
 
     .tool-btn {
-      background: none;
+      background: #ffffff;
       border: 1px solid var(--border-color);
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-size: 14px;
+      border-radius: 15px;
+      padding: 4px 12px;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      color: #333;
+      color: var(--text-color);
+      transition: all 0.2s;
     }
 
     .tool-btn:hover {
-      background-color: #f2f2f7;
+      background-color: #fff0f4;
+      border-color: var(--accent-color);
+      color: var(--accent-color);
     }
 
     #save-status {
-      font-size: 13px;
-      color: #8e8e93;
+      font-size: 12px;
+      color: #a89f91;
     }
 
-    /* リッチテキストエディタ（contenteditable） */
     #memo-editor {
       flex-grow: 1;
-      padding: 20px;
+      padding: 25px;
       font-size: 16px;
-      line-height: 1.6;
+      line-height: 1.8;
       outline: none;
       overflow-y: auto;
-    }
-
-    /* チェックボックスのスタイル */
-    #memo-editor div {
-      min-height: 1.6em;
+      color: var(--text-color);
     }
 
     .checkbox-item {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin: 2px 0;
+      margin: 4px 0;
     }
 
     .checkbox-item input[type="checkbox"] {
@@ -190,11 +205,12 @@
       height: 18px;
       accent-color: var(--accent-color);
       cursor: pointer;
+      border-radius: 4px;
     }
 
     .checkbox-item input[type="checkbox"]:checked + span {
       text-decoration: line-through;
-      color: #8e8e93;
+      color: #b8b0a6;
     }
 
     .checkbox-item span {
@@ -227,7 +243,8 @@
         background: none;
         border: none;
         color: var(--accent-color);
-        font-size: 17px;
+        font-size: 15px;
+        font-weight: bold;
         cursor: pointer;
       }
     }
@@ -241,7 +258,7 @@
 
   <div id="sidebar">
     <div id="sidebar-header">
-      <div id="sidebar-title">メモ</div>
+      <div id="sidebar-title">🌸 メモ</div>
       <button id="new-memo-btn" onclick="createNewMemo()" title="新規メモ">+</button>
     </div>
     <ul id="memo-list"></ul>
@@ -249,18 +266,16 @@
 
   <div id="editor">
     <div id="editor-header">
-      <button id="back-btn" onclick="hideEditor()">◀ メモ</button>
+      <button id="back-btn" onclick="hideEditor()">◀ もどる</button>
       
-      <!-- 編集ツールバー -->
       <div class="toolbar-group">
-        <button class="tool-btn" onclick="execCmd('bold')" title="太字"><b>B</b></button>
-        <button class="tool-btn" onclick="execCmd('underline')" title="下線"><u>U</u></button>
-        <button class="tool-btn" onclick="insertCheckbox()" title="チェックボックス">☑</button>
+        <button class="tool-btn" onclick="execCmd('bold')" title="ふとまじ"><b>B</b></button>
+        <button class="tool-btn" onclick="execCmd('underline')" title="したせん"><u>U</u></button>
+        <button class="tool-btn" onclick="insertCheckbox()" title="チェックボックス">☑ チェック</button>
       </div>
 
       <div id="save-status"></div>
     </div>
-    <!-- 自由編集できるエディタ領域 -->
     <div id="memo-editor" contenteditable="true" oninput="handleInput()" onkeydown="handleKeyDown(event)"></div>
   </div>
 
@@ -278,9 +293,8 @@
 
     window.onload = loadMemos;
 
-    // 1. メモ一覧の読み込み
     async function loadMemos() {
-      document.getElementById('save-status').textContent = '読み込み中...';
+      document.getElementById('save-status').textContent = 'よみこみ中...';
       
       const { data, error } = await supabaseClient
         .from('memos')
@@ -298,14 +312,12 @@
       document.getElementById('save-status').textContent = '';
     }
 
-    // HTMLタグを削除して純粋なテキストを取り出す関数（タイトル生成用）
     function stripHTML(html) {
       const tmp = document.createElement('div');
       tmp.innerHTML = html;
       return tmp.textContent || tmp.innerText || "";
     }
 
-    // 2. メモ一覧の描画
     function renderMemoList() {
       const list = document.getElementById('memo-list');
       list.innerHTML = '';
@@ -339,7 +351,6 @@
           li.classList.add('selected');
         }
 
-        // ドラッグ＆ドロップ
         li.addEventListener('dragstart', (e) => {
           draggedItem = li;
           li.classList.add('dragging');
@@ -373,9 +384,8 @@
       });
     }
 
-    // 3. 順序の保存
     async function updatePositionsInDatabase() {
-      document.getElementById('save-status').textContent = '順序保存中...';
+      document.getElementById('save-status').textContent = 'じゅんじょ保存中...';
       const listItems = document.querySelectorAll('#memo-list li');
       const totalCount = listItems.length;
 
@@ -403,15 +413,14 @@
       memosData = newMemosData;
 
       await Promise.all(updates);
-      document.getElementById('save-status').textContent = '順序保存完了';
+      document.getElementById('save-status').textContent = 'じゅんじょ保存完了';
       setTimeout(() => {
-        if (document.getElementById('save-status').textContent === '順序保存完了') {
+        if (document.getElementById('save-status').textContent === 'じゅんじょ保存完了') {
           document.getElementById('save-status').textContent = '保存済み';
         }
       }, 1000);
     }
 
-    // 4. メモを選択
     function selectMemo(id) {
       currentMemoId = id;
       const memo = memosData.find(m => m.id === id);
@@ -419,7 +428,7 @@
 
       if (memo) {
         editor.innerHTML = memo.text;
-        bindCheckboxEvents(); // チェックボックスのクリック判定を復元
+        bindCheckboxEvents();
         document.getElementById('save-status').textContent = '保存済み';
         editor.focus();
         
@@ -428,7 +437,6 @@
       }
     }
 
-    // 5. 新規メモ作成
     function createNewMemo() {
       clearTimeout(saveTimeout);
       isSaving = false;
@@ -446,9 +454,8 @@
       }, 50);
     }
 
-    // 6. メモ削除
     async function deleteMemoById(id) {
-      if (!confirm("このメモを削除してもよろしいですか？")) {
+      if (!confirm("このメモをけしてもいいですか？")) {
         return;
       }
 
@@ -476,13 +483,11 @@
       }
     }
 
-    // --- 編集コマンド（太字・下線） ---
     function execCmd(command) {
       document.execCommand(command, false, null);
       handleInput();
     }
 
-    // --- チェックボックス挿入機能 ---
     function insertCheckbox() {
       const editor = document.getElementById('memo-editor');
       const itemDiv = document.createElement('div');
@@ -494,7 +499,6 @@
         const range = selection.getRangeAt(0);
         range.insertNode(itemDiv);
         
-        // カーソルをチェックボックスのテキスト入力部に移動
         const span = itemDiv.querySelector('span');
         const newRange = document.createRange();
         newRange.setStart(span, 0);
@@ -508,7 +512,6 @@
       handleInput();
     }
 
-    // チェック状態が変わったとき保存
     function handleCheckboxChange(cb) {
       if (cb.checked) {
         cb.setAttribute('checked', 'checked');
@@ -518,7 +521,6 @@
       handleInput();
     }
 
-    // 保存データから読み込んだ後のチェックボックス状態同期
     function bindCheckboxEvents() {
       const checkboxes = document.querySelectorAll('#memo-editor input[type="checkbox"]');
       checkboxes.forEach(cb => {
@@ -526,7 +528,6 @@
       });
     }
 
-    // ★ iPhoneスタイルの Enter キー挙動コントロール ★
     function handleKeyDown(e) {
       if (e.key === 'Enter') {
         const selection = window.getSelection();
@@ -538,20 +539,18 @@
           : anchorNode.parentElement?.closest('.checkbox-item');
 
         if (currentCheckboxItem) {
-          e.preventDefault(); // 通常の改行を停止
+          e.preventDefault();
           
           const textSpan = currentCheckboxItem.querySelector('span');
           const hasText = textSpan && textSpan.textContent.trim().length > 0;
 
           if (hasText) {
-            // 文字がある場合：次の行にも新しいチェックボックスを作成
             const newCheckboxItem = document.createElement('div');
             newCheckboxItem.className = 'checkbox-item';
             newCheckboxItem.innerHTML = '<input type="checkbox" onchange="handleCheckboxChange(this)"><span contenteditable="true"></span>';
             
             currentCheckboxItem.after(newCheckboxItem);
 
-            // 新しいチェックボックスの文字入力位置へカーソル移動
             const newSpan = newCheckboxItem.querySelector('span');
             const newRange = document.createRange();
             newRange.setStart(newSpan, 0);
@@ -559,7 +558,6 @@
             selection.removeAllRanges();
             selection.addRange(newRange);
           } else {
-            // 空の状態でEnterを押した場合：チェックボックスを削除して通常の行に戻す
             const emptyDiv = document.createElement('div');
             emptyDiv.innerHTML = '<br>';
             currentCheckboxItem.replaceWith(emptyDiv);
@@ -575,7 +573,6 @@
       }
     }
 
-    // 7. 入力ハンドラー
     function handleInput() {
       const editor = document.getElementById('memo-editor');
       const htmlContent = editor.innerHTML;
@@ -588,7 +585,7 @@
         }
       }
 
-      document.getElementById('save-status').textContent = '保存中...';
+      document.getElementById('save-status').textContent = 'ほぞん中...';
 
       clearTimeout(saveTimeout);
       saveTimeout = setTimeout(() => {
@@ -596,7 +593,6 @@
       }, 300);
     }
 
-    // 8. 自動保存
     async function autoSave() {
       const editor = document.getElementById('memo-editor');
       const htmlContent = editor.innerHTML;
@@ -611,7 +607,6 @@
 
       try {
         if (currentMemoId) {
-          // 【更新】
           const { error } = await supabaseClient
             .from('memos')
             .update({ text: htmlContent })
@@ -621,7 +616,6 @@
             document.getElementById('save-status').textContent = '保存済み';
           }
         } else {
-          // 【新規登録】
           const maxPosition = memosData.length > 0 ? Math.max(...memosData.map(m => m.position || 0)) + 1 : 1;
 
           const { data, error } = await supabaseClient
