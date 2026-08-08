@@ -3,14 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>iMemo - 自動保存対応</title>
+  <title>iMemo - 高速自動保存版</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    /* 全体の設定 */
     :root {
-      --bg-color: #f2f2f7; /* iPhoneの薄灰色 */
+      --bg-color: #f2f2f7;
       --list-bg: #ffffff;
-      --accent-color: #eab308; /* メモ帳の黄色 */
+      --accent-color: #eab308;
       --text-color: #000000;
       --border-color: #c6c6c8;
       --sidebar-width: 260px;
@@ -27,7 +26,6 @@
       overflow: hidden;
     }
 
-    /* 左側：メモ一覧（サイドバー） */
     #sidebar {
       width: var(--sidebar-width);
       background-color: var(--bg-color);
@@ -49,7 +47,6 @@
       font-weight: 600;
     }
 
-    /* 右上＋ボタン */
     #new-memo-btn {
       background: none;
       border: none;
@@ -86,7 +83,6 @@
       background-color: #d1d1d6;
     }
 
-    /* 右側：メモ詳細（エディタ） */
     #editor {
       flex-grow: 1;
       display: flex;
@@ -103,10 +99,10 @@
       height: 35px;
     }
 
-    /* 保存状態を表示するラベル */
     #save-status {
       font-size: 13px;
       color: #8e8e93;
+      transition: opacity 0.2s;
     }
 
     #memo-textarea {
@@ -119,7 +115,6 @@
       outline: none;
     }
 
-    /* スマホ対応（画面が狭い時） */
     @media (max-width: 600px) {
       :root {
         --sidebar-width: 100%;
@@ -153,22 +148,18 @@
     @media (min-width: 601px) {
       #back-btn { display: none; }
     }
-
   </style>
 </head>
 <body>
 
-  <!-- 左側：メモ一覧 -->
   <div id="sidebar">
     <div id="sidebar-header">
       <div id="sidebar-title">メモ</div>
-      <!-- 右上の＋ボタン -->
       <button id="new-memo-btn" onclick="createNewMemo()" title="新規メモ">+</button>
     </div>
     <ul id="memo-list"></ul>
   </div>
 
-  <!-- 右側：メモ詳細 -->
   <div id="editor">
     <div id="editor-header">
       <button id="back-btn" onclick="hideEditor()">◀ メモ</button>
@@ -185,10 +176,10 @@
     let currentMemoId = null;
     let memosData = [];
     let saveTimeout = null;
+    let isSaving = false; // 保存処理中フラグ
 
     window.onload = loadMemos;
 
-    // 1. メモ一覧を読み込む
     async function loadMemos() {
       const { data, error } = await supabaseClient
         .from('memos')
@@ -204,7 +195,6 @@
       renderMemoList();
     }
 
-    // 2. メモ一覧の描画
     function renderMemoList() {
       const list = document.getElementById('memo-list');
       list.innerHTML = '';
@@ -224,7 +214,6 @@
       });
     }
 
-    // 3. メモを選択
     function selectMemo(id) {
       currentMemoId = id;
       const memo = memosData.find(m => m.id === id);
@@ -240,7 +229,6 @@
       }
     }
 
-    // 4. 新規メモ作成（＋ボタンを押した時）
     function createNewMemo() {
       currentMemoId = null;
       document.getElementById('memo-textarea').value = '';
@@ -250,17 +238,29 @@
       showEditor();
     }
 
-    // 5. 文字入力時の処理（自動保存のトリガー）
+    // 入力時の処理（待ち時間を0.2秒に大幅短縮）
     function handleInput() {
+      const text = document.getElementById('memo-textarea').value;
+      
+      // 左側の一覧（タイトル）をリアルタイムに更新（保存を待たずに画面だけ即更新）
+      if (currentMemoId) {
+        const memo = memosData.find(m => m.id === currentMemoId);
+        if (memo) {
+          memo.text = text;
+          renderMemoList();
+        }
+      }
+
       document.getElementById('save-status').textContent = '保存中...';
 
+      // 0.2秒（200ミリ秒）手が止まったら高速保存
       clearTimeout(saveTimeout);
       saveTimeout = setTimeout(() => {
         autoSave();
-      }, 500);
+      }, 200);
     }
 
-    // 6. 自動保存を実行
+    // 非同期で裏でサクサク保存する処理
     async function autoSave() {
       const text = document.getElementById('memo-textarea').value;
 
@@ -269,26 +269,28 @@
         return;
       }
 
+      if (isSaving) return; // すでに保存中なら二重送信を防ぐ
+      isSaving = true;
+
       if (currentMemoId) {
-        // 【更新】既存のメモを上書き保存
+        // 【更新】
         const { error } = await supabaseClient
           .from('memos')
           .update({ text: text })
           .eq('id', currentMemoId);
 
+        isSaving = false;
         if (!error) {
-          const memo = memosData.find(m => m.id === currentMemoId);
-          if (memo) memo.text = text;
-          renderMemoList();
           document.getElementById('save-status').textContent = '保存済み';
         }
       } else {
-        // 【新規作成】初回入力時に自動で新規登録
+        // 【新規作成】
         const { data, error } = await supabaseClient
           .from('memos')
           .insert([{ text: text }])
           .select();
 
+        isSaving = false;
         if (!error && data && data.length > 0) {
           currentMemoId = data[0].id;
           memosData.unshift(data[0]);
@@ -298,7 +300,6 @@
       }
     }
 
-    // スマホ用画面切り替え
     function showEditor() {
       if (window.innerWidth <= 600) {
         document.body.classList.add('showing-editor');
