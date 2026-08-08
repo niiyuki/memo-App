@@ -7,12 +7,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
-      --bg-color: #fdfbf7;       /* 柔らかいミルク色 */
-      --sidebar-bg: #f7f3ed;   /* サイドバーのほんのりベージュ */
+      --bg-color: #fdfbf7;
+      --sidebar-bg: #f7f3ed;
       --list-bg: #ffffff;
-      --accent-color: #ff9ebb;   /* やさしいイチゴピンク */
+      --accent-color: #ff9ebb;
       --accent-hover: #ff85a8;
-      --text-color: #5a524e;     /* ふんわりしたダークブラウン */
+      --text-color: #5a524e;
       --border-color: #eee8e0;
       --sidebar-width: 260px;
     }
@@ -198,6 +198,7 @@
       align-items: center;
       gap: 8px;
       margin: 4px 0;
+      transition: transform 0.2s ease, opacity 0.2s ease;
     }
 
     .checkbox-item input[type="checkbox"] {
@@ -512,11 +513,24 @@
       handleInput();
     }
 
+    // ★ チェックONで一番下へ移動、OFFで未完了エリアへ移動 ★
     function handleCheckboxChange(cb) {
+      const item = cb.closest('.checkbox-item');
+      const container = document.getElementById('memo-editor');
+
       if (cb.checked) {
         cb.setAttribute('checked', 'checked');
+        // チェックされた項目を一番下に移動
+        container.appendChild(item);
       } else {
         cb.removeAttribute('checked');
+        // チェックが外れた項目を「チェックされていない最初の項目の手前」または一番上へ移動
+        const firstCheckedItem = container.querySelector('.checkbox-item input[type="checkbox"]:checked')?.closest('.checkbox-item');
+        if (firstCheckedItem && firstCheckedItem !== item) {
+          container.insertBefore(item, firstCheckedItem);
+        } else if (!firstCheckedItem) {
+          container.insertBefore(item, container.firstChild);
+        }
       }
       handleInput();
     }
@@ -528,6 +542,7 @@
       });
     }
 
+    // ★ Enterで常に新しいチェックボックスを作成（消えません） ★
     function handleKeyDown(e) {
       if (e.key === 'Enter') {
         const selection = window.getSelection();
@@ -539,35 +554,23 @@
           : anchorNode.parentElement?.closest('.checkbox-item');
 
         if (currentCheckboxItem) {
-          e.preventDefault();
+          e.preventDefault(); // 通常改行を防ぐ
           
-          const textSpan = currentCheckboxItem.querySelector('span');
-          const hasText = textSpan && textSpan.textContent.trim().length > 0;
+          // 新しいチェックボックスを作成
+          const newCheckboxItem = document.createElement('div');
+          newCheckboxItem.className = 'checkbox-item';
+          newCheckboxItem.innerHTML = '<input type="checkbox" onchange="handleCheckboxChange(this)"><span contenteditable="true"></span>';
+          
+          currentCheckboxItem.after(newCheckboxItem);
 
-          if (hasText) {
-            const newCheckboxItem = document.createElement('div');
-            newCheckboxItem.className = 'checkbox-item';
-            newCheckboxItem.innerHTML = '<input type="checkbox" onchange="handleCheckboxChange(this)"><span contenteditable="true"></span>';
-            
-            currentCheckboxItem.after(newCheckboxItem);
+          // カーソルを新しい入力欄に移動
+          const newSpan = newCheckboxItem.querySelector('span');
+          const newRange = document.createRange();
+          newRange.setStart(newSpan, 0);
+          newRange.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(newRange);
 
-            const newSpan = newCheckboxItem.querySelector('span');
-            const newRange = document.createRange();
-            newRange.setStart(newSpan, 0);
-            newRange.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(newRange);
-          } else {
-            const emptyDiv = document.createElement('div');
-            emptyDiv.innerHTML = '<br>';
-            currentCheckboxItem.replaceWith(emptyDiv);
-
-            const newRange = document.createRange();
-            newRange.setStart(emptyDiv, 0);
-            newRange.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(newRange);
-          }
           handleInput();
         }
       }
