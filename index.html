@@ -98,7 +98,6 @@
       margin-right: 8px;
     }
 
-    /* 一覧の中の削除ボタン（×マーク） */
     .list-delete-btn {
       background: none;
       border: none;
@@ -112,7 +111,7 @@
     }
 
     .list-delete-btn:hover {
-      color: #ff3b30; /* ホバー時に赤色に変化 */
+      color: #ff3b30;
       transform: scale(1.2);
     }
 
@@ -129,12 +128,34 @@
     }
 
     #editor-header {
-      padding: 10px 15px;
+      padding: 5px 15px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       border-bottom: 1px solid var(--border-color);
-      height: 35px;
+      height: 40px;
+    }
+
+    /* 編集ツールバーボタン */
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .tool-btn {
+      background: none;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #333;
+    }
+
+    .tool-btn:hover {
+      background-color: #f2f2f7;
     }
 
     #save-status {
@@ -142,14 +163,43 @@
       color: #8e8e93;
     }
 
-    #memo-textarea {
+    /* リッチテキストエディタ（contenteditable） */
+    #memo-editor {
       flex-grow: 1;
       padding: 20px;
-      border: none;
-      resize: none;
       font-size: 16px;
-      line-height: 1.5;
+      line-height: 1.6;
       outline: none;
+      overflow-y: auto;
+    }
+
+    /* チェックボックスのスタイル */
+    #memo-editor div {
+      min-height: 1.6em;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 2px 0;
+    }
+
+    .checkbox-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent-color);
+      cursor: pointer;
+    }
+
+    .checkbox-item input[type="checkbox"]:checked + span {
+      text-decoration: line-through;
+      color: #8e8e93;
+    }
+
+    .checkbox-item span {
+      outline: none;
+      flex-grow: 1;
     }
 
     @media (max-width: 600px) {
@@ -200,9 +250,18 @@
   <div id="editor">
     <div id="editor-header">
       <button id="back-btn" onclick="hideEditor()">◀ メモ</button>
+      
+      <!-- 編集ツールバー -->
+      <div class="toolbar-group">
+        <button class="tool-btn" onclick="execCmd('bold')" title="太字"><b>B</b></button>
+        <button class="tool-btn" onclick="execCmd('underline')" title="下線"><u>U</u></button>
+        <button class="tool-btn" onclick="insertCheckbox()" title="チェックボックス">☑</button>
+      </div>
+
       <div id="save-status"></div>
     </div>
-    <textarea id="memo-textarea" placeholder="メモを入力..." oninput="handleInput()"></textarea>
+    <!-- 自由編集できるエディタ領域 -->
+    <div id="memo-editor" contenteditable="true" oninput="handleInput()" onkeydown="handleKeyDown(event)"></div>
   </div>
 
   <script>
@@ -239,7 +298,14 @@
       document.getElementById('save-status').textContent = '';
     }
 
-    // 2. メモ一覧の描画（タイトル＋右側に✕ボタン）
+    // HTMLタグを削除して純粋なテキストを取り出す関数（タイトル生成用）
+    function stripHTML(html) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      return tmp.textContent || tmp.innerText || "";
+    }
+
+    // 2. メモ一覧の描画
     function renderMemoList() {
       const list = document.getElementById('memo-list');
       list.innerHTML = '';
@@ -250,14 +316,13 @@
         li.dataset.id = memo.id;
         li.dataset.index = index;
 
-        // メモタイトル部分
         const titleSpan = document.createElement('span');
         titleSpan.className = 'memo-title';
-        const lines = memo.text.split('\n');
+        const cleanText = stripHTML(memo.text);
+        const lines = cleanText.split('\n');
         titleSpan.textContent = lines[0] || "新規メモ";
         titleSpan.onclick = () => selectMemo(memo.id);
 
-        // 削除ボタン部分（✕マーク）
         const delBtn = document.createElement('button');
         delBtn.className = 'list-delete-btn';
         delBtn.innerHTML = '✕';
@@ -274,7 +339,7 @@
           li.classList.add('selected');
         }
 
-        // --- ドラッグ＆ドロップ処理 ---
+        // ドラッグ＆ドロップ
         li.addEventListener('dragstart', (e) => {
           draggedItem = li;
           li.classList.add('dragging');
@@ -308,7 +373,7 @@
       });
     }
 
-    // 3. ドラッグ後の並び順を保存
+    // 3. 順序の保存
     async function updatePositionsInDatabase() {
       document.getElementById('save-status').textContent = '順序保存中...';
       const listItems = document.querySelectorAll('#memo-list li');
@@ -350,12 +415,13 @@
     function selectMemo(id) {
       currentMemoId = id;
       const memo = memosData.find(m => m.id === id);
-      const textarea = document.getElementById('memo-textarea');
+      const editor = document.getElementById('memo-editor');
 
       if (memo) {
-        textarea.value = memo.text;
+        editor.innerHTML = memo.text;
+        bindCheckboxEvents(); // チェックボックスのクリック判定を復元
         document.getElementById('save-status').textContent = '保存済み';
-        textarea.focus();
+        editor.focus();
         
         renderMemoList();
         showEditor();
@@ -368,19 +434,19 @@
       isSaving = false;
 
       currentMemoId = null;
-      const textarea = document.getElementById('memo-textarea');
-      textarea.value = '';
+      const editor = document.getElementById('memo-editor');
+      editor.innerHTML = '';
       document.getElementById('save-status').textContent = '新規メモ';
       
       renderMemoList();
       showEditor();
 
       setTimeout(() => {
-        textarea.focus();
+        editor.focus();
       }, 50);
     }
 
-    // 6. 指定したIDのメモを削除する処理
+    // 6. メモ削除
     async function deleteMemoById(id) {
       if (!confirm("このメモを削除してもよろしいですか？")) {
         return;
@@ -410,14 +476,114 @@
       }
     }
 
-    // 7. 文字入力時の処理
-    function handleInput() {
-      const text = document.getElementById('memo-textarea').value;
+    // --- 編集コマンド（太字・下線） ---
+    function execCmd(command) {
+      document.execCommand(command, false, null);
+      handleInput();
+    }
+
+    // --- チェックボックス挿入機能 ---
+    function insertCheckbox() {
+      const editor = document.getElementById('memo-editor');
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'checkbox-item';
+      itemDiv.innerHTML = '<input type="checkbox" onchange="handleCheckboxChange(this)"><span contenteditable="true"></span>';
       
+      const selection = window.getSelection();
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.insertNode(itemDiv);
+        
+        // カーソルをチェックボックスのテキスト入力部に移動
+        const span = itemDiv.querySelector('span');
+        const newRange = document.createRange();
+        newRange.setStart(span, 0);
+        newRange.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+      } else {
+        editor.appendChild(itemDiv);
+      }
+      
+      handleInput();
+    }
+
+    // チェック状態が変わったとき保存
+    function handleCheckboxChange(cb) {
+      if (cb.checked) {
+        cb.setAttribute('checked', 'checked');
+      } else {
+        cb.removeAttribute('checked');
+      }
+      handleInput();
+    }
+
+    // 保存データから読み込んだ後のチェックボックス状態同期
+    function bindCheckboxEvents() {
+      const checkboxes = document.querySelectorAll('#memo-editor input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        cb.onchange = () => handleCheckboxChange(cb);
+      });
+    }
+
+    // ★ iPhoneスタイルの Enter キー挙動コントロール ★
+    function handleKeyDown(e) {
+      if (e.key === 'Enter') {
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+
+        const anchorNode = selection.anchorNode;
+        const currentCheckboxItem = anchorNode.nodeType === 1 
+          ? anchorNode.closest('.checkbox-item') 
+          : anchorNode.parentElement?.closest('.checkbox-item');
+
+        if (currentCheckboxItem) {
+          e.preventDefault(); // 通常の改行を停止
+          
+          const textSpan = currentCheckboxItem.querySelector('span');
+          const hasText = textSpan && textSpan.textContent.trim().length > 0;
+
+          if (hasText) {
+            // 文字がある場合：次の行にも新しいチェックボックスを作成
+            const newCheckboxItem = document.createElement('div');
+            newCheckboxItem.className = 'checkbox-item';
+            newCheckboxItem.innerHTML = '<input type="checkbox" onchange="handleCheckboxChange(this)"><span contenteditable="true"></span>';
+            
+            currentCheckboxItem.after(newCheckboxItem);
+
+            // 新しいチェックボックスの文字入力位置へカーソル移動
+            const newSpan = newCheckboxItem.querySelector('span');
+            const newRange = document.createRange();
+            newRange.setStart(newSpan, 0);
+            newRange.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+          } else {
+            // 空の状態でEnterを押した場合：チェックボックスを削除して通常の行に戻す
+            const emptyDiv = document.createElement('div');
+            emptyDiv.innerHTML = '<br>';
+            currentCheckboxItem.replaceWith(emptyDiv);
+
+            const newRange = document.createRange();
+            newRange.setStart(emptyDiv, 0);
+            newRange.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+          }
+          handleInput();
+        }
+      }
+    }
+
+    // 7. 入力ハンドラー
+    function handleInput() {
+      const editor = document.getElementById('memo-editor');
+      const htmlContent = editor.innerHTML;
+
       if (currentMemoId) {
         const memo = memosData.find(m => m.id === currentMemoId);
         if (memo) {
-          memo.text = text;
+          memo.text = htmlContent;
           renderMemoList();
         }
       }
@@ -432,9 +598,10 @@
 
     // 8. 自動保存
     async function autoSave() {
-      const text = document.getElementById('memo-textarea').value;
+      const editor = document.getElementById('memo-editor');
+      const htmlContent = editor.innerHTML;
 
-      if (!text && !currentMemoId) {
+      if (!stripHTML(htmlContent).trim() && !currentMemoId) {
         document.getElementById('save-status').textContent = '';
         return;
       }
@@ -447,7 +614,7 @@
           // 【更新】
           const { error } = await supabaseClient
             .from('memos')
-            .update({ text: text })
+            .update({ text: htmlContent })
             .eq('id', currentMemoId);
 
           if (!error) {
@@ -459,7 +626,7 @@
 
           const { data, error } = await supabaseClient
             .from('memos')
-            .insert([{ text: text, position: maxPosition }])
+            .insert([{ text: htmlContent, position: maxPosition }])
             .select();
 
           if (!error && data && data.length > 0) {
