@@ -313,10 +313,23 @@
       document.getElementById('save-status').textContent = '';
     }
 
-    function stripHTML(html) {
+    // ★ 記載のある最初の行をタイトルとして抽出する関数 ★
+    function getFirstNonEmptyLine(html) {
       const tmp = document.createElement('div');
       tmp.innerHTML = html;
-      return tmp.textContent || tmp.innerText || "";
+      
+      // テキストを取り出して行ごとに分割
+      const text = tmp.textContent || tmp.innerText || "";
+      const lines = text.split('\n');
+      
+      // 文字が入っている最初の行を探す（空白文字を除外）
+      for (let line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.length > 0) {
+          return trimmed;
+        }
+      }
+      return "新規メモ";
     }
 
     function renderMemoList() {
@@ -331,9 +344,8 @@
 
         const titleSpan = document.createElement('span');
         titleSpan.className = 'memo-title';
-        const cleanText = stripHTML(memo.text);
-        const lines = cleanText.split('\n');
-        titleSpan.textContent = lines[0] || "新規メモ";
+        // 記載のある最初の1行を取得してセット
+        titleSpan.textContent = getFirstNonEmptyLine(memo.text);
         titleSpan.onclick = () => selectMemo(memo.id);
 
         const delBtn = document.createElement('button');
@@ -513,18 +525,15 @@
       handleInput();
     }
 
-    // ★ チェックONで一番下へ移動、OFFで未完了エリアへ移動 ★
     function handleCheckboxChange(cb) {
       const item = cb.closest('.checkbox-item');
       const container = document.getElementById('memo-editor');
 
       if (cb.checked) {
         cb.setAttribute('checked', 'checked');
-        // チェックされた項目を一番下に移動
         container.appendChild(item);
       } else {
         cb.removeAttribute('checked');
-        // チェックが外れた項目を「チェックされていない最初の項目の手前」または一番上へ移動
         const firstCheckedItem = container.querySelector('.checkbox-item input[type="checkbox"]:checked')?.closest('.checkbox-item');
         if (firstCheckedItem && firstCheckedItem !== item) {
           container.insertBefore(item, firstCheckedItem);
@@ -542,7 +551,6 @@
       });
     }
 
-    // ★ Enterで常に新しいチェックボックスを作成（消えません） ★
     function handleKeyDown(e) {
       if (e.key === 'Enter') {
         const selection = window.getSelection();
@@ -554,16 +562,14 @@
           : anchorNode.parentElement?.closest('.checkbox-item');
 
         if (currentCheckboxItem) {
-          e.preventDefault(); // 通常改行を防ぐ
+          e.preventDefault();
           
-          // 新しいチェックボックスを作成
           const newCheckboxItem = document.createElement('div');
           newCheckboxItem.className = 'checkbox-item';
           newCheckboxItem.innerHTML = '<input type="checkbox" onchange="handleCheckboxChange(this)"><span contenteditable="true"></span>';
           
           currentCheckboxItem.after(newCheckboxItem);
 
-          // カーソルを新しい入力欄に移動
           const newSpan = newCheckboxItem.querySelector('span');
           const newRange = document.createRange();
           newRange.setStart(newSpan, 0);
@@ -600,7 +606,12 @@
       const editor = document.getElementById('memo-editor');
       const htmlContent = editor.innerHTML;
 
-      if (!stripHTML(htmlContent).trim() && !currentMemoId) {
+      // 文字列から空白を除いた純粋なテキストを取り出して判定
+      const tmp = document.createElement('div');
+      tmp.innerHTML = htmlContent;
+      const plainText = (tmp.textContent || tmp.innerText || "").trim();
+
+      if (!plainText && !currentMemoId) {
         document.getElementById('save-status').textContent = '';
         return;
       }
