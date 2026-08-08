@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>iMemo - 高速自動保存版</title>
+  <title>iMemo - 不具合修正版</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
@@ -102,7 +102,6 @@
     #save-status {
       font-size: 13px;
       color: #8e8e93;
-      transition: opacity 0.2s;
     }
 
     #memo-textarea {
@@ -176,7 +175,7 @@
     let currentMemoId = null;
     let memosData = [];
     let saveTimeout = null;
-    let isSaving = false; // 保存処理中フラグ
+    let isSaving = false;
 
     window.onload = loadMemos;
 
@@ -229,20 +228,31 @@
       }
     }
 
+    // ★【修正】新規メモ作成（＋ボタンを押した時）
     function createNewMemo() {
+      // 1. 動いている保存タイマーを強制ストップ
+      clearTimeout(saveTimeout);
+      isSaving = false;
+
+      // 2. 現在選択中のメモを解除して入力欄をクリア
       currentMemoId = null;
-      document.getElementById('memo-textarea').value = '';
-      document.getElementById('save-status').textContent = '';
-      document.getElementById('memo-textarea').focus();
+      const textarea = document.getElementById('memo-textarea');
+      textarea.value = '';
+      document.getElementById('save-status').textContent = '新規メモ';
+      
+      // 3. 一覧の選択表示を解除＆画面切り替え
       renderMemoList();
       showEditor();
+
+      // 4. 入力エリアにカーソルをセット
+      setTimeout(() => {
+        textarea.focus();
+      }, 50);
     }
 
-    // 入力時の処理（待ち時間を0.2秒に大幅短縮）
     function handleInput() {
       const text = document.getElementById('memo-textarea').value;
       
-      // 左側の一覧（タイトル）をリアルタイムに更新（保存を待たずに画面だけ即更新）
       if (currentMemoId) {
         const memo = memosData.find(m => m.id === currentMemoId);
         if (memo) {
@@ -253,14 +263,13 @@
 
       document.getElementById('save-status').textContent = '保存中...';
 
-      // 0.2秒（200ミリ秒）手が止まったら高速保存
       clearTimeout(saveTimeout);
       saveTimeout = setTimeout(() => {
         autoSave();
-      }, 200);
+      }, 300);
     }
 
-    // 非同期で裏でサクサク保存する処理
+    // ★【修正】エラーが起きてもアプリが固まらないように改善
     async function autoSave() {
       const text = document.getElementById('memo-textarea').value;
 
@@ -269,34 +278,38 @@
         return;
       }
 
-      if (isSaving) return; // すでに保存中なら二重送信を防ぐ
+      if (isSaving) return;
       isSaving = true;
 
-      if (currentMemoId) {
-        // 【更新】
-        const { error } = await supabaseClient
-          .from('memos')
-          .update({ text: text })
-          .eq('id', currentMemoId);
+      try {
+        if (currentMemoId) {
+          // 【更新】
+          const { error } = await supabaseClient
+            .from('memos')
+            .update({ text: text })
+            .eq('id', currentMemoId);
 
-        isSaving = false;
-        if (!error) {
-          document.getElementById('save-status').textContent = '保存済み';
-        }
-      } else {
-        // 【新規作成】
-        const { data, error } = await supabaseClient
-          .from('memos')
-          .insert([{ text: text }])
-          .select();
+          if (!error) {
+            document.getElementById('save-status').textContent = '保存済み';
+          }
+        } else {
+          // 【新規作成】
+          const { data, error } = await supabaseClient
+            .from('memos')
+            .insert([{ text: text }])
+            .select();
 
-        isSaving = false;
-        if (!error && data && data.length > 0) {
-          currentMemoId = data[0].id;
-          memosData.unshift(data[0]);
-          renderMemoList();
-          document.getElementById('save-status').textContent = '保存済み';
+          if (!error && data && data.length > 0) {
+            currentMemoId = data[0].id;
+            memosData.unshift(data[0]);
+            renderMemoList();
+            document.getElementById('save-status').textContent = '保存済み';
+          }
         }
+      } catch (e) {
+        console.error("保存エラー:", e);
+      } finally {
+        isSaving = false; // 必ず保存ロックを解除
       }
     }
 
