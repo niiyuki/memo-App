@@ -10,6 +10,7 @@
       --bg-color: #f2f2f7;
       --list-bg: #ffffff;
       --accent-color: #eab308;
+      --danger-color: #ff3b30; /* 削除ボタンの赤色 */
       --text-color: #000000;
       --border-color: #c6c6c8;
       --sidebar-width: 260px;
@@ -99,9 +100,25 @@
       height: 35px;
     }
 
+    #editor-header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
     #save-status {
       font-size: 13px;
       color: #8e8e93;
+    }
+
+    /* ゴミ箱ボタン */
+    #delete-memo-btn {
+      background: none;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0;
+      display: none; /* 初期状態は非表示 */
     }
 
     #memo-textarea {
@@ -162,13 +179,16 @@
   <div id="editor">
     <div id="editor-header">
       <button id="back-btn" onclick="hideEditor()">◀ メモ</button>
-      <div id="save-status"></div>
+      <div id="editor-header-right">
+        <div id="save-status"></div>
+        <!-- 削除（ゴミ箱）ボタン -->
+        <button id="delete-memo-btn" onclick="deleteMemo()" title="メモを削除">🗑️</button>
+      </div>
     </div>
     <textarea id="memo-textarea" placeholder="メモを入力..." oninput="handleInput()"></textarea>
   </div>
 
   <script>
-    // Supabaseの接続情報をセット済み
     const SUPABASE_URL = "https://lgolwacrtoabfnwpzfvq.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxnb2x3YWNydG9hYmZud3B6ZnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxMzE3NzIsImV4cCI6MjEwMTcwNzc3Mn0.nd15mPFy49ttqhYC1ycFtXfPXwZRymyFWoqBef0IHSU";
     
@@ -181,7 +201,7 @@
 
     window.onload = loadMemos;
 
-    // 1. メモ一覧をSupabaseから読み込む
+    // 1. メモ一覧の読み込み
     async function loadMemos() {
       document.getElementById('save-status').textContent = '読み込み中...';
       
@@ -230,6 +250,7 @@
       if (memo) {
         textarea.value = memo.text;
         document.getElementById('save-status').textContent = '保存済み';
+        document.getElementById('delete-memo-btn').style.display = 'block'; // ゴミ箱を表示
         textarea.focus();
         
         renderMemoList();
@@ -246,6 +267,7 @@
       const textarea = document.getElementById('memo-textarea');
       textarea.value = '';
       document.getElementById('save-status').textContent = '新規メモ';
+      document.getElementById('delete-memo-btn').style.display = 'none'; // 新規時はゴミ箱を隠す
       
       renderMemoList();
       showEditor();
@@ -255,7 +277,40 @@
       }, 50);
     }
 
-    // 5. 文字入力時の処理
+    // 5. メモを削除する関数
+    async function deleteMemo() {
+      if (!currentMemoId) return;
+
+      // 確認アラートを表示
+      if (!confirm("このメモを削除してもよろしいですか？")) {
+        return;
+      }
+
+      document.getElementById('save-status').textContent = '削除中...';
+
+      // Supabaseからデータを削除
+      const { error } = await supabaseClient
+        .from('memos')
+        .delete()
+        .eq('id', currentMemoId);
+
+      if (error) {
+        alert("削除に失敗しました: " + error.message);
+        document.getElementById('save-status').textContent = 'エラー';
+        return;
+      }
+
+      // 画面のデータ配列からも削除
+      memosData = memosData.filter(m => m.id !== currentMemoId);
+      
+      // 入力欄をクリアして初期化
+      createNewMemo();
+      
+      // スマホ表示の場合は一覧画面に戻る
+      hideEditor();
+    }
+
+    // 6. 文字入力時の処理
     function handleInput() {
       const text = document.getElementById('memo-textarea').value;
       
@@ -275,7 +330,7 @@
       }, 300);
     }
 
-    // 6. 自動保存
+    // 7. 自動保存
     async function autoSave() {
       const text = document.getElementById('memo-textarea').value;
 
@@ -310,6 +365,7 @@
             memosData.unshift(data[0]);
             renderMemoList();
             document.getElementById('save-status').textContent = '保存済み';
+            document.getElementById('delete-memo-btn').style.display = 'block'; // 保存できたらゴミ箱を表示
           }
         }
       } catch (e) {
