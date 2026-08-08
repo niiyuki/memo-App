@@ -49,13 +49,16 @@
       font-weight: 600;
     }
 
+    /* 右上＋ボタン */
     #new-memo-btn {
       background: none;
       border: none;
       color: var(--accent-color);
-      font-size: 24px;
+      font-size: 28px;
+      font-weight: 300;
       cursor: pointer;
-      padding: 0;
+      padding: 0 5px;
+      line-height: 1;
     }
 
     #memo-list {
@@ -159,7 +162,8 @@
   <div id="sidebar">
     <div id="sidebar-header">
       <div id="sidebar-title">メモ</div>
-      <button id="new-memo-btn" onclick="createNewMemo()">📝</button>
+      <!-- 右上の＋ボタン -->
+      <button id="new-memo-btn" onclick="createNewMemo()" title="新規メモ">+</button>
     </div>
     <ul id="memo-list"></ul>
   </div>
@@ -170,7 +174,6 @@
       <button id="back-btn" onclick="hideEditor()">◀ メモ</button>
       <div id="save-status"></div>
     </div>
-    <!-- 文字を入力するたびに oninput が動いて自動保存します -->
     <textarea id="memo-textarea" placeholder="メモを入力..." oninput="handleInput()"></textarea>
   </div>
 
@@ -181,7 +184,7 @@
 
     let currentMemoId = null;
     let memosData = [];
-    let saveTimeout = null; // 自動保存のタイマー
+    let saveTimeout = null;
 
     window.onload = loadMemos;
 
@@ -237,7 +240,7 @@
       }
     }
 
-    // 4. 新規メモ作成
+    // 4. 新規メモ作成（＋ボタンを押した時）
     function createNewMemo() {
       currentMemoId = null;
       document.getElementById('memo-textarea').value = '';
@@ -251,7 +254,6 @@
     function handleInput() {
       document.getElementById('save-status').textContent = '保存中...';
 
-      // 連続で入力している間は保存を待ち、入力が少し止まったら（0.5秒後）自動保存する
       clearTimeout(saveTimeout);
       saveTimeout = setTimeout(() => {
         autoSave();
@@ -262,7 +264,6 @@
     async function autoSave() {
       const text = document.getElementById('memo-textarea').value;
 
-      // 文字が空で、まだ作成されていない場合は保存しない
       if (!text && !currentMemoId) {
         document.getElementById('save-status').textContent = '';
         return;
@@ -276,7 +277,6 @@
           .eq('id', currentMemoId);
 
         if (!error) {
-          // メモ一覧の表示テキストを更新
           const memo = memosData.find(m => m.id === currentMemoId);
           if (memo) memo.text = text;
           renderMemoList();
@@ -290,8 +290,8 @@
           .select();
 
         if (!error && data && data.length > 0) {
-          currentMemoId = data[0].id; // 発行されたIDを保持
-          memosData.unshift(data[0]); // 一覧の一番上に追加
+          currentMemoId = data[0].id;
+          memosData.unshift(data[0]);
           renderMemoList();
           document.getElementById('save-status').textContent = '保存済み';
         }
